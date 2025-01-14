@@ -1,0 +1,76 @@
+name: CI/CD Pipeline for Node.js REST API
+
+# Trigger workflow on push or pull requests to the main branch
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  # Job: Install dependencies, run tests, and build Docker image
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Check out the code from the repository
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2: Set up Node.js environment
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+
+    # Step 3: Install dependencies
+    - name: Install dependencies
+      run: npm install
+
+    # Step 4: Run tests
+    - name: Run tests
+      run: npm test
+
+    # Step 5: Lint the code (optional, add eslint to your project)
+    - name: Run linter
+      run: npx eslint index.js
+
+    # Step 6: Build Docker image
+    - name: Build Docker image
+      run: docker build -t nodejs-restapi:latest .
+
+  # Job: Deploy the application (example to AWS EC2 or similar)
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Checkout the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2: Login to Docker Hub
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    # Step 3: Push Docker image to Docker Hub
+    - name: Push Docker image
+      run: docker push nodejs-restapi:latest
+
+    # Step 4: Deploy to a server (example using SSH)
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_KEY }}
+        script: |
+          docker pull nodejs-restapi:latest
+          docker stop restapi || true
+          docker rm restapi || true
+          docker run -d --name restapi -p 8080:8080 nodejs-restapi:latest
